@@ -1,16 +1,21 @@
 import streamlit as st
 import pandas as pd
 import requests
-from supabase import create_client, Client
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Initialize refresh flag ---
 if "refresh_flag" not in st.session_state:
     st.session_state.refresh_flag = False
 
 # --- Supabase config ---
-SUPABASE_URL = "https://vphtpzlbdcotorqpuonr.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwaHRwemxiZGNvdG9ycXB1b25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU1MDg0OTcsImV4cCI6MjA2MTA4NDQ5N30.XTP7clV__5ZVp9hZCJ2eGhL7HgEUeTcl2uINX0JC9WI"
-SUPABASE_BUCKET = "bidding-projects"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET")
+
+from supabase import create_client, Client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Page Setup ---
@@ -146,26 +151,26 @@ if record_id:
             )
 
             # Button to send to JIRA
-            if st.button("✅ Approve Bidding (Jira)", key=f"jira_{record['ReferenceNo']}"):
-                payload = {"reference_number": record['ReferenceNo']}
-                response = requests.post(
-                    "https://refine-rugs-studios-generation.trycloudflare.com/create-ticket",
-                    json=payload
-                )
+          ##  if st.button("✅ Approve Bidding (Jira)", key=f"jira_{record['ReferenceNo']}"):
+              ##  payload = {"reference_number": record['ReferenceNo']}
+              ##  response = requests.post(
+              ##      "https://chaos-minimize-create-florist.trycloudflare.com/create-ticket",
+              ##      json=payload
+               ## )
 
-                if response.status_code == 200:
-                    supabase.table("BiddingDB").update({"isApproved": True}).eq("ReferenceNo", record['ReferenceNo']).execute()
-                    st.success(f"Bidding '{record['Title']}' approved and ticket created in Jira.")
-                    st.cache_data.clear()
-                    st.session_state.refresh_flag = not st.session_state.refresh_flag
-                else:
-                    st.error(f"Failed to create Jira ticket. Status code: {response.status_code}")
+              ##  if response.status_code == 200:
+                ##    supabase.table("BiddingDB").update({"isApproved": True}).eq("ReferenceNo", record['ReferenceNo']).execute()
+                 ##   st.success(f"Bidding '{record['Title']}' approved and ticket created in Jira.")
+                 ##   st.cache_data.clear()
+                 ##   st.session_state.refresh_flag = not st.session_state.refresh_flag
+              ##  else:
+                 ##   st.error(f"Failed to create Jira ticket. Status code: {response.status_code}")
 
             # New button to send to Monday.com
             if st.button("📩 Approve Bidding (Monday)", key=f"monday_{record['ReferenceNo']}"):
                 payload = {"reference_number": record['ReferenceNo']}
                 response = requests.post(
-                    "https://aivadeus.onrender.com/add-monday",
+                    " https://systems-contractors-wiki-vg.trycloudflare.com/add-monday",
                     json=payload
                 )
 
