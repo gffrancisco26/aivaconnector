@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Initialize refresh flag ---
 if "refresh_flag" not in st.session_state:
     st.session_state.refresh_flag = False
 
@@ -64,20 +63,6 @@ def fetch_all_data():
         page += 1
     return pd.DataFrame(all_rows)
 
-# --- Efficient count using count="exact" ---
-def get_filtered_count(entity=None, category=None, status=None, classification=None):
-    query = supabase.table("BiddingDB").select("*", count="exact", head=True)
-    if entity and entity != "All":
-        query = query.eq("Entity", entity)
-    if category and category != "All":
-        query = query.eq("category", category)
-    if status and status != "All":
-        query = query.eq("Status", status)
-    if classification and classification != "All":
-        query = query.eq("Classification", classification)
-    query = query.eq("isApproved", False)
-    return query.execute().count
-
 # --- Manual Refresh ---
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
@@ -88,7 +73,6 @@ if "isApproved" in df.columns:
 else:
     st.warning("⚠️ No Data Recorded")
 
-
 if df.empty:
     st.warning("⚠️ No Data Recorded")
     st.stop()
@@ -96,21 +80,32 @@ if df.empty:
 # --- Sidebar Filters ---
 with st.sidebar:
     st.header("🔍 Filter Bids")
-    entity_filter = st.selectbox("Entity", ["All"] + sorted(df["Entity"].dropna().unique().tolist()))
-    category_filter = st.selectbox("Category", ["All"] + sorted(df["category"].dropna().unique().tolist()))
-    status_filter = st.selectbox("Status", ["All"] + sorted(df["Status"].dropna().unique().tolist()))
-    classification_filter = st.selectbox("Classification", ["All"] + sorted(df["Classification"].dropna().unique().tolist()))
+
+    entity_options = sorted(df["Entity"].dropna().unique().tolist())
+    category_options = sorted(df["category"].dropna().unique().tolist())
+    status_options = sorted(df["Status"].dropna().unique().tolist())
+    classification_options = sorted(df["Classification"].dropna().unique().tolist())
+    type_options = sorted(df["Type"].dropna().unique().tolist()) if "Type" in df.columns else []
+
+    entity_filter = st.multiselect("Entity", entity_options, default=[])
+    category_filter = st.multiselect("Category", category_options, default=[])
+    status_filter = st.multiselect("Status", status_options, default=[])
+    classification_filter = st.multiselect("Classification", classification_options, default=[])
+    type_filter = st.multiselect("Type", type_options, default=[])
 
 # --- Apply Filters ---
 filtered_df = df.copy()
-if entity_filter != "All":
-    filtered_df = filtered_df[filtered_df["Entity"] == entity_filter]
-if category_filter != "All":
-    filtered_df = filtered_df[filtered_df["category"] == category_filter]
-if status_filter != "All":
-    filtered_df = filtered_df[filtered_df["Status"] == status_filter]
-if classification_filter != "All":
-    filtered_df = filtered_df[filtered_df["Classification"] == classification_filter]
+
+if entity_filter:
+    filtered_df = filtered_df[filtered_df["Entity"].isin(entity_filter)]
+if category_filter:
+    filtered_df = filtered_df[filtered_df["category"].isin(category_filter)]
+if status_filter:
+    filtered_df = filtered_df[filtered_df["Status"].isin(status_filter)]
+if classification_filter:
+    filtered_df = filtered_df[filtered_df["Classification"].isin(classification_filter)]
+if type_filter and "Type" in filtered_df.columns:
+    filtered_df = filtered_df[filtered_df["Type"].isin(type_filter)]
 
 # --- Metrics ---
 col1, col2 = st.columns(2)
@@ -119,7 +114,46 @@ col2.metric(label="🔎 Filtered Records", value=len(filtered_df))
 
 # --- Display Table ---
 st.markdown("### 📄 Filtered Bidding Data")
-st.dataframe(filtered_df, use_container_width=True)
+
+# Drop unwanted columns
+if "id" in filtered_df.columns:
+    filtered_df = filtered_df.drop(columns=["id"])
+if "created_at" in filtered_df.columns:
+    filtered_df = filtered_df.drop(columns=["created_at"])
+
+# Format ABC
+if "ABC" in filtered_df.columns:
+    filtered_df["ABC"] = filtered_df["ABC"].apply(
+        lambda x: f"₱ {float(x):,.2f}" if pd.notnull(x) else "N/A"
+    )
+
+if "REQT_LIST" in filtered_df.columns:
+    filtered_df["REQT_LIST"] = filtered_df["REQT_LIST"].apply(lambda x: int(x) if pd.notnull(x) else 0)
+
+
+# Column order
+pinned_columns = ["ReferenceNo", "ABC", "category"]
+if "Type" in filtered_df.columns:
+    pinned_columns.append("Type")
+if "REQT_LIST" in filtered_df.columns:
+    pinned_columns.append("REQT_LIST")
+other_columns = [col for col in filtered_df.columns if col not in pinned_columns]
+ordered_columns = pinned_columns + other_columns
+filtered_df = filtered_df[ordered_columns]
+
+# Display with column config
+st.data_editor(
+    filtered_df,
+    use_container_width=True,
+    disabled=True,
+    column_config={
+        "ReferenceNo": st.column_config.Column(label="📌 Reference No.", pinned="left"),
+        "ABC": st.column_config.Column(label="💰 ABC", pinned="left"),
+        "category": st.column_config.Column(label="📂 Category", pinned="left"),
+        "Type": st.column_config.Column(label="📑 Type"),
+        "REQT_LIST": st.column_config.Column(label="📝 REQT LIST"),
+    }
+)
 
 # --- Record Viewer ---
 record_id = st.text_input("Enter record Reference No. to view", "")
@@ -129,14 +163,14 @@ if record_id:
         with st.expander("📌 Record Details", expanded=True):
             st.markdown(f"### 📝 {record['Title']}")
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown(f"**📍 Entity:** {record['Entity']}")
-                st.markdown(f"**📂 Category:** {record['category']}") 
+                st.markdown(f"**📂 Category:** {record['category']}")
                 st.markdown(f"**🏷️ Classification:** {record['Classification']}")
                 st.markdown(f"**📌 Status:** {record['Status']}")
                 st.markdown(f"**💰 ABC:** {record['ABC']}")
-            
+
             with col2:
                 st.markdown(f"**📅 Publish Date:** {record['PublishDate']}")
                 st.markdown(f"**⏳ Closing Date:** {record['ClosingDate']}")
@@ -150,34 +184,16 @@ if record_id:
                 key=f"summary_{record['ReferenceNo']}"
             )
 
-            # Button to send to JIRA
-          ##  if st.button("✅ Approve Bidding (Jira)", key=f"jira_{record['ReferenceNo']}"):
-              ##  payload = {"reference_number": record['ReferenceNo']}
-              ##  response = requests.post(
-              ##      "https://chaos-minimize-create-florist.trycloudflare.com/create-ticket",
-              ##      json=payload
-               ## )
-
-              ##  if response.status_code == 200:
-                ##    supabase.table("BiddingDB").update({"isApproved": True}).eq("ReferenceNo", record['ReferenceNo']).execute()
-                 ##   st.success(f"Bidding '{record['Title']}' approved and ticket created in Jira.")
-                 ##   st.cache_data.clear()
-                 ##   st.session_state.refresh_flag = not st.session_state.refresh_flag
-              ##  else:
-                 ##   st.error(f"Failed to create Jira ticket. Status code: {response.status_code}")
-
-            # New button to send to Monday.com
+            # Monday.com button
             if st.button("📩 Approve Bidding (Monday)", key=f"monday_{record['ReferenceNo']}"):
                 payload = {"reference_number": record['ReferenceNo']}
                 response = requests.post(
-                    " https://systems-contractors-wiki-vg.trycloudflare.com/add-monday",
+                    "https://statement-kick-remaining-fire.trycloudflare.com/add-monday",
                     json=payload
                 )
-
                 if response.status_code == 200:
                     st.success(f"Bidding '{record['Title']}' sent to Monday.com.")
                 else:
                     st.error(f"Failed to send to Monday.com. Status code: {response.status_code}")
     except IndexError:
         st.error("No record found with that ReferenceNo.")
-
