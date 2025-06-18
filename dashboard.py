@@ -128,7 +128,8 @@ if "ABC" in filtered_df.columns:
     )
 
 if "REQT_LIST" in filtered_df.columns:
-    filtered_df["REQT_LIST"] = filtered_df["REQT_LIST"].apply(lambda x: int(x) if pd.notnull(x) else 0)
+    filtered_df["REQT_LIST"] = filtered_df["REQT_LIST"].astype(str)
+
 
 
 # Column order
